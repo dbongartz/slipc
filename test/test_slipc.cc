@@ -54,13 +54,13 @@ TEST_CASE("Encoding single bytes", "[encode]") {
 
   dut::slipc_writer writer{
       .ctx = &ctx,
-      .write = [](void *ctx, uint8_t const *buf,
+      .write = [](void *_ctx, uint8_t const *buf,
                   size_t len) -> dut::slipc_writer_error {
-        auto _ctx = static_cast<writer_ctx *>(ctx);
-        if (_ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          _ctx->buf.insert(_ctx->buf.end(), buf, buf + len);
+        auto ctx = static_cast<writer_ctx *>(_ctx);
+        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
+          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
         }
-        return _ctx->err;
+        return ctx->err;
       },
   };
   auto res = dut::slipc_encode_byte(&writer, byte);
@@ -98,13 +98,13 @@ TEST_CASE("Good packet should encode", "[packet]") {
 
   dut::slipc_writer writer{
       .ctx = &ctx,
-      .write = [](void *ctx, uint8_t const *buf,
+      .write = [](void *_ctx, uint8_t const *buf,
                   size_t len) -> dut::slipc_writer_error {
-        auto _ctx = static_cast<writer_ctx *>(ctx);
-        if (_ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          _ctx->buf.insert(_ctx->buf.end(), buf, buf + len);
+        auto ctx = static_cast<writer_ctx *>(_ctx);
+        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
+          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
         }
-        return _ctx->err;
+        return ctx->err;
       },
   };
 
@@ -163,13 +163,13 @@ TEST_CASE("Transfer should encode", "[transfer]") {
 
   dut::slipc_writer writer{
       .ctx = &wctx,
-      .write = [](void *ctx, uint8_t const *buf,
+      .write = [](void *_ctx, uint8_t const *buf,
                   size_t len) -> dut::slipc_writer_error {
-        auto _ctx = static_cast<rw_ctx *>(ctx);
-        if (_ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          _ctx->buf.insert(_ctx->buf.end(), buf, buf + len);
+        auto ctx = static_cast<rw_ctx *>(_ctx);
+        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
+          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
         }
-        return static_cast<dut::slipc_writer_error>(_ctx->err);
+        return static_cast<dut::slipc_writer_error>(ctx->err);
       },
   };
 
@@ -195,19 +195,19 @@ TEST_CASE("Transfer should encode", "[transfer]") {
 
   dut::slipc_reader reader{
       .ctx = &rctx,
-      .read = [](void *ctx, uint8_t *buf,
+      .read = [](void *_ctx, uint8_t *buf,
                  size_t *len) -> dut::slipc_reader_error {
-        auto _ctx = static_cast<rw_ctx *>(ctx);
-        if (_ctx->buf.empty()) {
+        auto ctx = static_cast<rw_ctx *>(_ctx);
+        if (ctx->buf.empty()) {
           *len = 0;
           return dut::slipc_reader_error::SLIPC_READER_EOF;
         }
-        auto size = std::min(_ctx->buf.size(), *len);
-        std::copy(_ctx->buf.begin(), _ctx->buf.begin() + size, buf);
-        _ctx->buf.erase(_ctx->buf.begin(), _ctx->buf.begin() + size);
+        auto size = std::min(ctx->buf.size(), *len);
+        std::copy(ctx->buf.begin(), ctx->buf.begin() + size, buf);
+        ctx->buf.erase(ctx->buf.begin(), ctx->buf.begin() + size);
         *len = size;
 
-        INFO(std::format("left: {}", _ctx->buf.size()));
+        INFO(std::format("left: {}", ctx->buf.size()));
         return dut::slipc_reader_error::SLIPC_READER_OK;
         // return dut::slipc_reader_error::SLIPC_READER_ERROR;
       },

@@ -8,7 +8,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
-# set_target_properties(tests PROPERTIES EXCLUDE_FROM_ALL True)
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(CTest)
 include(Catch)
