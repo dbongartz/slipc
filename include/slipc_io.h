@@ -19,18 +19,18 @@
 /**
  * \brief User context structure.
  */
-typedef struct slipc_user_ctx {
+typedef struct slipc_io_user_ctx {
   void *ctx; /**< User-defined context */
-} slipc_user_ctx_t;
+} slipc_io_user_ctx_t;
 
 /**
  * \brief Result codes for writer operations.
  */
-typedef enum slipc_writer_result {
-  SLIPC_WRITER_OK,    /**< Operation successful */
-  SLIPC_WRITER_EOF,   /**< End of file */
-  SLIPC_WRITER_ERROR, /**< Error occurred */
-} slipc_writer_result_t;
+typedef enum slipc_io_writer_result {
+  SLIPC_IO_WRITER_OK,    /**< Operation successful */
+  SLIPC_IO_WRITER_EOF,   /**< End of file */
+  SLIPC_IO_WRITER_ERROR, /**< Error occurred */
+} slipc_io_writer_result_t;
 
 /**
  * \brief Callback function type for writing data.
@@ -45,25 +45,24 @@ typedef enum slipc_writer_result {
  * \retval SLIPC_WRITER_EOF Can't write more data
  * \retval SLIPC_WRITER_ERROR Error occurred
  */
-typedef slipc_writer_result_t (*slipc_write_cb)(slipc_user_ctx_t user_ctx,
-                                                const uint8_t *data,
-                                                size_t *len);
+typedef slipc_io_writer_result_t (*slipc_io_write_cb)(
+    slipc_io_user_ctx_t user_ctx, const uint8_t *data, size_t *len);
 
 /**
  * \brief Writer structure.
  */
 typedef struct slipc_writer {
-  struct slipc_user_ctx user_ctx; /**< User context */
-  slipc_write_cb write;           /**< Write callback function */
-} slipc_writer_t;
+  struct slipc_io_user_ctx user_ctx; /**< User context */
+  slipc_io_write_cb write;           /**< Write callback function */
+} slipc_io_writer_t;
 
 /**
  * \brief Writer for writing to an array.
  */
-typedef struct slipc_array_writer {
+typedef struct slipc_io_array_writer {
   uint8_t *buf;
   size_t len;
-} slipc_array_writer_t;
+} slipc_io_array_writer_t;
 
 /**
  * \brief Create a writer for writing to an array.
@@ -74,17 +73,17 @@ typedef struct slipc_array_writer {
  *
  * \return Initialized writer structure
  */
-slipc_writer_t slipc_array_writer_create(slipc_array_writer_t *self,
-                                         uint8_t *buf, size_t len);
+slipc_io_writer_t slipc_io_array_writer_create(slipc_io_array_writer_t *self,
+                                               uint8_t *buf, size_t len);
 
 /**
  * \brief Result codes for reader operations.
  */
-typedef enum slipc_reader_result {
-  SLIPC_READER_EOF,   /**< End of file */
-  SLIPC_READER_MORE,  /**< More data available */
-  SLIPC_READER_ERROR, /**< Error occurred */
-} slipc_reader_result_t;
+typedef enum slipc_io_reader_result {
+  SLIPC_IO_READER_EOF,   /**< End of file */
+  SLIPC_IO_READER_MORE,  /**< More data available */
+  SLIPC_IO_READER_ERROR, /**< Error occurred */
+} slipc_io_reader_result_t;
 
 /**
  * \brief Callback function type for reading data.
@@ -103,25 +102,25 @@ typedef enum slipc_reader_result {
  * \retval SLIPC_READER_MORE More data available
  * \retval SLIPC_READER_ERROR Error occurred
  */
-typedef slipc_reader_result_t (*slipc_read_cb)(slipc_user_ctx_t user_ctx,
-                                               uint8_t *data, size_t *len);
+typedef slipc_io_reader_result_t (*slipc_io_read_cb)(
+    slipc_io_user_ctx_t user_ctx, uint8_t *data, size_t *len);
 
 /**
  * \struct slipc_reader
  * \brief Reader structure.
  */
-typedef struct slipc_reader {
-  struct slipc_user_ctx user_ctx; /**< User context */
-  slipc_read_cb read;             /**< Read callback function */
-} slipc_reader_t;
+typedef struct slipc_io_reader {
+  struct slipc_io_user_ctx user_ctx; /**< User context */
+  slipc_io_read_cb read;             /**< Read callback function */
+} slipc_io_reader_t;
 
 /**
  * \brief Reader for reading from an array.
  */
-typedef struct slipc_array_reader {
+typedef struct slipc_io_array_reader {
   uint8_t const *buf;
   size_t len;
-} slipc_array_reader_t;
+} slipc_io_array_reader_t;
 
 /**
  * \brief Create a reader for reading from an array.
@@ -132,7 +131,7 @@ typedef struct slipc_array_reader {
  *
  * \return Initialized reader structure
  */
-slipc_reader_t slipc_array_reader_create(slipc_array_reader_t *self,
-                                         uint8_t const *buf, size_t len);
+slipc_io_reader_t slipc_io_array_reader_create(slipc_io_array_reader_t *self,
+                                               uint8_t const *buf, size_t len);
 
 #endif // __SLIPC_IO_H__

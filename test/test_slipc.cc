@@ -2,6 +2,7 @@
 #include "catch2/generators/catch_generators.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -184,16 +185,11 @@ static const InputDecode MALFORMED_PACKET = {
         dut::slipc_char_t::SLIPC_ESC,
         7,
         8,
-        // Malformed
-        dut::slipc_char_t::SLIPC_ESC,
+        // Malformed but present
         9,
-        // Malformed
-        dut::slipc_char_t::SLIPC_ESC,
-        // Malformed
+        // Malformed but present
         dut::slipc_char_t::SLIPC_ESC,
         10,
-        // Malformed
-        dut::slipc_char_t::SLIPC_ESC,
     },
 };
 
@@ -267,20 +263,20 @@ static const InputDecode MALFORMED_NOISY_PACKET = {
     },
     MALFORMED_PACKET.decoded};
 
-struct VecWriter : dut::slipc_writer_t {
+struct VecWriter : dut::slipc_io_writer_t {
   std::vector<uint8_t> buf;
-  dut::slipc_writer_result_t result;
+  dut::slipc_io_writer_result_t result;
 
-  VecWriter(dut::slipc_writer_result_t result =
-                dut::slipc_writer_result_t::SLIPC_WRITER_OK)
-      : result(result), dut::slipc_writer_t{this, writer_cb} {}
+  VecWriter(dut::slipc_io_writer_result_t result =
+                dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK)
+      : result(result), dut::slipc_io_writer_t{this, writer_cb} {}
 
-  static dut::slipc_writer_result_t writer_cb(dut::slipc_user_ctx_t uctx,
-                                              uint8_t const *buf, size_t *len) {
+  static dut::slipc_io_writer_result_t
+  writer_cb(dut::slipc_io_user_ctx_t uctx, uint8_t const *buf, size_t *len) {
     auto &ctx = *static_cast<VecWriter *>(uctx.ctx);
     std::span src(buf, *len);
 
-    if (ctx.result == dut::slipc_writer_result_t::SLIPC_WRITER_OK) {
+    if (ctx.result == dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK) {
       ctx.buf.insert(ctx.buf.end(), src.begin(), src.end());
       *len = src.size_bytes();
     } else {
@@ -291,26 +287,26 @@ struct VecWriter : dut::slipc_writer_t {
   }
 };
 
-struct VecReader : dut::slipc_reader_t {
+struct VecReader : dut::slipc_io_reader_t {
   std::vector<uint8_t> buf;
-  dut::slipc_reader_result_t result;
+  dut::slipc_io_reader_result_t result;
 
   VecReader(std::vector<uint8_t> buf,
-            dut::slipc_reader_result_t result =
-                dut::slipc_reader_result_t::SLIPC_READER_MORE)
-      : buf(buf), result(result), dut::slipc_reader_t{this, reader_cb} {}
+            dut::slipc_io_reader_result_t result =
+                dut::slipc_io_reader_result_t::SLIPC_IO_READER_MORE)
+      : buf(buf), result(result), dut::slipc_io_reader_t{this, reader_cb} {}
 
-  static dut::slipc_reader_result_t reader_cb(dut::slipc_user_ctx_t uctx,
-                                              uint8_t *buf, size_t *len) {
+  static dut::slipc_io_reader_result_t reader_cb(dut::slipc_io_user_ctx_t uctx,
+                                                 uint8_t *buf, size_t *len) {
     auto &ctx = *static_cast<VecReader *>(uctx.ctx);
     std::span dst(buf, *len);
-    if (ctx.result == dut::slipc_reader_result_t::SLIPC_READER_MORE) {
+    if (ctx.result == dut::slipc_io_reader_result_t::SLIPC_IO_READER_MORE) {
       *len = std::min(ctx.buf.size(), dst.size_bytes());
       std::copy_n(ctx.buf.begin(), *len, buf);
       ctx.buf.erase(ctx.buf.begin(), ctx.buf.begin() + *len);
 
       if (ctx.buf.empty()) {
-        return dut::slipc_reader_result_t::SLIPC_READER_EOF;
+        return dut::slipc_io_reader_result_t::SLIPC_IO_READER_EOF;
       }
     }
 
@@ -345,15 +341,15 @@ TEST_CASE("Encoding single bytes", "[encode]") {
   SECTION("Should succeed") {
     VecWriter writer;
     auto res = dut::slipc_encode_byte(&writer, byte);
-    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-    REQUIRE(writer.buf == exp_encoded);
+    CHECK(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    CHECK(writer.buf == exp_encoded);
   }
 
   SECTION("Should fail") {
-    VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_ERROR);
+    VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_ERROR);
     auto res = dut::slipc_encode_byte(&writer, byte);
-    REQUIRE(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-    REQUIRE(writer.buf.empty());
+    CHECK(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    CHECK(writer.buf.empty());
   }
 }
 
@@ -363,19 +359,19 @@ TEST_CASE("Packet encode", "[encode]") {
     auto const packet = GOOD_PACKET;
 
     SECTION("Writer ok") {
-      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+      VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK);
       auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
                                           packet.decoded.size(), false);
-      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-      REQUIRE(writer.buf == packet.encoded);
+      CHECK(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      CHECK(writer.buf == packet.encoded);
     }
 
     SECTION("Writer error") {
-      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_ERROR);
+      VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_ERROR);
       auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
                                           packet.decoded.size(), false);
-      REQUIRE(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-      REQUIRE(writer.buf.empty());
+      CHECK(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      CHECK(writer.buf.empty());
     }
   }
 
@@ -383,17 +379,17 @@ TEST_CASE("Packet encode", "[encode]") {
     auto const packet = GOOD_PACKET_WITH_START;
 
     SECTION("Writer ok") {
-      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+      VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK);
       auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
                                           packet.decoded.size(), true);
-      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-      REQUIRE(writer.buf == packet.encoded);
+      CHECK(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      CHECK(writer.buf == packet.encoded);
     }
   }
 }
 
 TEST_CASE("Transfer encode", "[transfer]") {
-  VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+  VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK);
 
   SECTION("Good Packet") {
 
@@ -404,8 +400,8 @@ TEST_CASE("Transfer encode", "[transfer]") {
       auto slip = dut::slipc_encoder_new(false);
       auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-      REQUIRE(writer.buf == packet.encoded);
+      CHECK(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      CHECK(writer.buf == packet.encoded);
     }
 
     SECTION("With startbyte") {
@@ -416,14 +412,14 @@ TEST_CASE("Transfer encode", "[transfer]") {
       auto slip = dut::slipc_encoder_new(true);
       auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-      REQUIRE(writer.buf == packet.encoded);
+      CHECK(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      CHECK(writer.buf == packet.encoded);
     }
   }
 }
 
 TEST_CASE("Transfer decode", "[decode]") {
-  VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+  VecWriter writer(dut::slipc_io_writer_result_t::SLIPC_IO_WRITER_OK);
 
   SECTION("Good Packet") {
 
@@ -434,8 +430,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("With startbyte") {
@@ -445,8 +441,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
   }
 
@@ -457,8 +453,8 @@ TEST_CASE("Transfer decode", "[decode]") {
     auto decoder = dut::slipc_decoder_new(true);
     auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-    REQUIRE(writer.buf == packet.decoded);
+    CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+    CHECK(writer.buf == packet.decoded);
   }
 
   SECTION("No Data Packet") {
@@ -469,16 +465,16 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
-      REQUIRE(writer.buf.empty());
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
+      CHECK(writer.buf.empty());
     }
 
     SECTION("With startbyte") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
+      CHECK(writer.buf == packet.decoded);
     }
   }
 
@@ -490,8 +486,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf.empty());
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf.empty());
     }
 
     SECTION("With startbyte") {
@@ -501,8 +497,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("With noise") {
@@ -512,8 +508,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf.empty());
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf.empty());
     }
   }
 
@@ -525,8 +521,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("With startbyte") {
@@ -536,8 +532,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("Noisy Packet") {
@@ -547,8 +543,8 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
   }
 }
@@ -563,8 +559,8 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("With startbyte") {
@@ -574,8 +570,8 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
   }
 
@@ -586,8 +582,8 @@ TEST_CASE("Packet decode", "[decode]") {
     auto res = dut::slipc_decoder_decode_packet(
         &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-    REQUIRE(writer.buf == packet.decoded);
+    CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+    CHECK(writer.buf == packet.decoded);
   }
 
   SECTION("Malformed Packet") {
@@ -599,8 +595,8 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("With startbyte") {
@@ -610,8 +606,8 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
 
     SECTION("Noisy Packet") {
@@ -621,8 +617,8 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
-      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-      REQUIRE(writer.buf == packet.decoded);
+      CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      CHECK(writer.buf == packet.decoded);
     }
   }
 }

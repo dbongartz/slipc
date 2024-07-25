@@ -9,6 +9,7 @@
  * LICENSE: This library is released under the MIT License.
  */
 #include "slipc.h"
+#include "slipc_io.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -23,7 +24,7 @@
  * \retval SLIPC_WRITER_EOF Can't write more data
  * \retval SLIPC_WRITER_ERROR Error occurred
  */
-static slipc_writer_result_t slipc_write_end_byte(slipc_writer_t *writer);
+static slipc_io_writer_result_t slipc_write_end_byte(slipc_io_writer_t *writer);
 
 /**
  * \brief Skip to the start byte in the reader.
@@ -34,9 +35,9 @@ static slipc_writer_result_t slipc_write_end_byte(slipc_writer_t *writer);
  * \retval SLIPC_DECODER_NOT_FOUND Start byte not found
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
-static slipc_decoder_result_t slipc_skip_to_start(slipc_reader_t *reader);
+static slipc_decoder_result_t slipc_skip_to_start(slipc_io_reader_t *reader);
 
-slipc_encoder_result_t slipc_encode_byte(slipc_writer_t *writer, uint8_t byte) {
+slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer, uint8_t byte) {
   assert(writer);
 
   uint8_t stuffbyte = 0;
@@ -53,7 +54,7 @@ slipc_encoder_result_t slipc_encode_byte(slipc_writer_t *writer, uint8_t byte) {
 
   if (stuffbyte != 0) {
     size_t len = 1;
-    if (writer->write(writer->user_ctx, &byte, &len) != SLIPC_WRITER_OK ||
+    if (writer->write(writer->user_ctx, &byte, &len) != SLIPC_IO_WRITER_OK ||
         len != 1) {
       return SLIPC_ENCODER_IO_ERROR;
     }
@@ -61,7 +62,7 @@ slipc_encoder_result_t slipc_encode_byte(slipc_writer_t *writer, uint8_t byte) {
   }
 
   size_t len = 1;
-  if (writer->write(writer->user_ctx, &byte, &len) != SLIPC_WRITER_OK ||
+  if (writer->write(writer->user_ctx, &byte, &len) != SLIPC_IO_WRITER_OK ||
       len != 1) {
     return SLIPC_ENCODER_IO_ERROR;
   }
@@ -82,8 +83,8 @@ slipc_encoder_t slipc_encoder_new(bool startbyte) {
 }
 
 slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
-                                              slipc_reader_t *reader,
-                                              slipc_writer_t *writer) {
+                                              slipc_io_reader_t *reader,
+                                              slipc_io_writer_t *writer) {
   assert(self);
   assert(writer && writer->write);
   assert(reader && reader->read);
@@ -91,20 +92,20 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
   uint8_t byte;
 
   if (self->startbyte) {
-    if (slipc_write_end_byte(writer) != SLIPC_WRITER_OK) {
+    if (slipc_write_end_byte(writer) != SLIPC_IO_WRITER_OK) {
       return SLIPC_ENCODER_IO_ERROR;
     }
   }
 
   while (1) {
     size_t len = 1;
-    slipc_reader_result_t res = reader->read(reader->user_ctx, &byte, &len);
+    slipc_io_reader_result_t res = reader->read(reader->user_ctx, &byte, &len);
 
     if (len > 1) {
       return SLIPC_ENCODER_IO_ERROR;
     }
 
-    if (len != 1 || res == SLIPC_READER_ERROR) {
+    if (len != 1 || res == SLIPC_IO_READER_ERROR) {
       return SLIPC_ENCODER_IO_ERROR;
     }
 
@@ -112,8 +113,8 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
       return SLIPC_ENCODER_IO_ERROR;
     }
 
-    if (res == SLIPC_READER_EOF) {
-      if (slipc_write_end_byte(writer) != SLIPC_WRITER_OK) {
+    if (res == SLIPC_IO_READER_EOF) {
+      if (slipc_write_end_byte(writer) != SLIPC_IO_WRITER_OK) {
         return SLIPC_ENCODER_IO_ERROR;
       }
       return SLIPC_ENCODER_OK;
@@ -121,14 +122,14 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
   }
 }
 
-slipc_encoder_result_t slipc_encode_packet(slipc_writer_t *writer,
+slipc_encoder_result_t slipc_encode_packet(slipc_io_writer_t *writer,
                                            uint8_t const *buf, size_t len,
                                            bool startbyte) {
   assert(writer && writer->write);
   assert(buf);
 
-  slipc_array_reader_t reader_ctx;
-  slipc_reader_t reader = slipc_array_reader_create(&reader_ctx, buf, len);
+  slipc_io_array_reader_t reader_ctx;
+  slipc_io_reader_t reader = slipc_io_array_reader_create(&reader_ctx, buf, len);
 
   slipc_encoder_t encoder = slipc_encoder_new(startbyte);
 
@@ -154,14 +155,14 @@ bool slipc_decoder_is_malformed(slipc_decoder_t *self) {
   return self->malformed;
 }
 
-static slipc_writer_result_t slipc_write_byte(slipc_writer_t *writer,
+static slipc_io_writer_result_t slipc_write_byte(slipc_io_writer_t *writer,
                                               uint8_t byte) {
   size_t len = 1;
   return writer->write(writer->user_ctx, &byte, &len);
 }
 
 slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
-                                         slipc_writer_t *writer, uint8_t byte) {
+                                         slipc_io_writer_t *writer, uint8_t byte) {
 
   assert(self);
   assert(writer && writer->write);
@@ -170,6 +171,10 @@ slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
   self->prev = byte;
 
   uint8_t byte_to_write = byte;
+
+  if (byte == SLIPC_END) {
+    return SLIPC_DECODER_EOF;
+  }
 
   if (prev == SLIPC_ESC) {
     switch (byte) {
@@ -181,12 +186,11 @@ slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
       break;
     default:
       // Malformed packet, but let's just keep those bytes in the output.
-      // We need to write the previous still.
       self->malformed = true;
-      if (slipc_write_byte(writer, prev) != SLIPC_WRITER_OK) {
+      if (slipc_write_byte(writer, byte) != SLIPC_IO_WRITER_OK) {
         return SLIPC_DECODER_IO_ERROR;
       }
-      break;
+      return SLIPC_DECODER_MORE;
     }
   }
 
@@ -194,11 +198,7 @@ slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
     return SLIPC_DECODER_MORE;
   }
 
-  if (byte == SLIPC_END) {
-    return SLIPC_DECODER_EOF;
-  }
-
-  if (slipc_write_byte(writer, byte_to_write) != SLIPC_WRITER_OK) {
+  if (slipc_write_byte(writer, byte_to_write) != SLIPC_IO_WRITER_OK) {
     return SLIPC_DECODER_IO_ERROR;
   }
   return SLIPC_DECODER_MORE;
@@ -206,8 +206,8 @@ slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
 
 // TODO: implement results
 slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
-                                              slipc_reader_t *reader,
-                                              slipc_writer_t *writer) {
+                                              slipc_io_reader_t *reader,
+                                              slipc_io_writer_t *writer) {
   assert(self);
   assert(reader && reader->read);
   assert(writer && writer->write);
@@ -223,14 +223,14 @@ slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
   while (1) {
     size_t len = 1;
 
-    slipc_reader_result_t read_res =
+    slipc_io_reader_result_t read_res =
         reader->read(reader->user_ctx, &byte, &len);
 
-    if (len == 0 && read_res == SLIPC_READER_EOF) {
+    if (len == 0 && read_res == SLIPC_IO_READER_EOF) {
       return SLIPC_DECODER_NOT_FOUND;
     }
 
-    if (len != 1 || read_res == SLIPC_READER_ERROR) {
+    if (len != 1 || read_res == SLIPC_IO_READER_ERROR) {
       return SLIPC_DECODER_IO_ERROR;
     }
 
@@ -239,40 +239,40 @@ slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
       return SLIPC_DECODER_EOF;
     }
 
-    if (!(decode_res == SLIPC_DECODER_MORE && read_res == SLIPC_READER_MORE)) {
+    if (!(decode_res == SLIPC_DECODER_MORE && read_res == SLIPC_IO_READER_MORE)) {
       return SLIPC_DECODER_MORE;
     }
   }
 }
 
 slipc_decoder_result_t slipc_decoder_decode_packet(slipc_decoder_t *self,
-                                                   slipc_writer_t *writer,
+                                                   slipc_io_writer_t *writer,
                                                    uint8_t const *buf,
                                                    size_t len) {
   assert(self);
   assert(writer && writer->write);
   assert(buf);
 
-  slipc_array_reader_t reader_ctx;
-  slipc_reader_t reader = slipc_array_reader_create(&reader_ctx, buf, len);
+  slipc_io_array_reader_t reader_ctx;
+  slipc_io_reader_t reader = slipc_io_array_reader_create(&reader_ctx, buf, len);
 
   return slipc_decoder_transfer(self, &reader, writer);
 }
 
-static slipc_writer_result_t slipc_write_end_byte(slipc_writer_t *writer) {
+static slipc_io_writer_result_t slipc_write_end_byte(slipc_io_writer_t *writer) {
   uint8_t const start = SLIPC_END;
   size_t len = 1;
   return writer->write(writer->user_ctx, &start, &len);
 }
 
-static slipc_decoder_result_t slipc_skip_to_start(slipc_reader_t *reader) {
+static slipc_decoder_result_t slipc_skip_to_start(slipc_io_reader_t *reader) {
   uint8_t byte;
   while (1) {
     size_t len = 1;
 
-    slipc_reader_result_t res = reader->read(reader->user_ctx, &byte, &len);
+    slipc_io_reader_result_t res = reader->read(reader->user_ctx, &byte, &len);
 
-    if (len > 1 || res == SLIPC_READER_ERROR) {
+    if (len > 1 || res == SLIPC_IO_READER_ERROR) {
       return SLIPC_DECODER_IO_ERROR;
     }
 

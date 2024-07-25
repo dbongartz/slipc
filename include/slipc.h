@@ -73,7 +73,7 @@ slipc_encoder_t slipc_encoder_new(bool startbyte);
  * \retval SLIPC_ENCODER_OK Operation successful
  * \retval SLIPC_ENCODER_IO_ERROR I/O error occurred
  */
-slipc_encoder_result_t slipc_encode_byte(slipc_writer_t *writer, uint8_t byte);
+slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer, uint8_t byte);
 
 /**
  * \brief Transfer data from reader to writer.
@@ -89,8 +89,8 @@ slipc_encoder_result_t slipc_encode_byte(slipc_writer_t *writer, uint8_t byte);
  * \retval SLIPC_ENCODER_IO_ERROR I/O error occurred
  */
 slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
-                                              slipc_reader_t *reader,
-                                              slipc_writer_t *writer);
+                                              slipc_io_reader_t *reader,
+                                              slipc_io_writer_t *writer);
 
 /**
  * \brief Encode a packet of data into a writer.
@@ -105,7 +105,7 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
  * \retval SLIPC_ENCODER_OK Operation successful
  * \retval SLIPC_ENCODER_IO_ERROR I/O error occurred
  */
-slipc_encoder_result_t slipc_encode_packet(slipc_writer_t *writer,
+slipc_encoder_result_t slipc_encode_packet(slipc_io_writer_t *writer,
                                            const uint8_t *buf, size_t len,
                                            bool startbyte);
 
@@ -169,7 +169,7 @@ bool slipc_decoder_is_malformed(slipc_decoder_t *self);
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
 slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
-                                         slipc_writer_t *writer, uint8_t byte);
+                                         slipc_io_writer_t *writer, uint8_t byte);
 
 /**
  * \brief Transfer data from reader to writer using the decoder.
@@ -187,8 +187,8 @@ slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
 slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
-                                              slipc_reader_t *reader,
-                                              slipc_writer_t *writer);
+                                              slipc_io_reader_t *reader,
+                                              slipc_io_writer_t *writer);
 
 /**
  * \brief Decode a packet of data into a writer.
@@ -206,9 +206,15 @@ slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
 slipc_decoder_result_t slipc_decoder_decode_packet(slipc_decoder_t *self,
-                                                   slipc_writer_t *writer,
+                                                   slipc_io_writer_t *writer,
                                                    const uint8_t *buf,
                                                    size_t len);
+
+slipc_encoder_result_t slipc_encoder_simple(slipc_io_writer_t *writer,
+                                            const uint8_t *buf, size_t *len);
+
+slipc_decoder_result_t slipc_decoder_simple(slipc_io_reader_t *reader,
+                                            uint8_t *buf, size_t *len);
 
 #ifdef __cplusplus
 }
