@@ -37,7 +37,8 @@ static slipc_io_writer_result_t slipc_write_end_byte(slipc_io_writer_t *writer);
  */
 static slipc_decoder_result_t slipc_skip_to_start(slipc_io_reader_t *reader);
 
-slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer, uint8_t byte) {
+slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer,
+                                         uint8_t byte) {
   assert(writer);
 
   uint8_t stuffbyte = 0;
@@ -100,11 +101,6 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
   while (1) {
     size_t len = 1;
     slipc_io_reader_result_t res = reader->read(reader->user_ctx, &byte, &len);
-
-    if (len > 1) {
-      return SLIPC_ENCODER_IO_ERROR;
-    }
-
     if (len != 1 || res == SLIPC_IO_READER_ERROR) {
       return SLIPC_ENCODER_IO_ERROR;
     }
@@ -129,10 +125,10 @@ slipc_encoder_result_t slipc_encode_packet(slipc_io_writer_t *writer,
   assert(buf);
 
   slipc_io_array_reader_t reader_ctx;
-  slipc_io_reader_t reader = slipc_io_array_reader_create(&reader_ctx, buf, len);
+  slipc_io_reader_t reader =
+      slipc_io_array_reader_create(&reader_ctx, buf, len);
 
   slipc_encoder_t encoder = slipc_encoder_new(startbyte);
-
   return slipc_encoder_transfer(&encoder, &reader, writer);
 }
 
@@ -156,14 +152,14 @@ bool slipc_decoder_is_malformed(slipc_decoder_t *self) {
 }
 
 static slipc_io_writer_result_t slipc_write_byte(slipc_io_writer_t *writer,
-                                              uint8_t byte) {
+                                                 uint8_t byte) {
   size_t len = 1;
   return writer->write(writer->user_ctx, &byte, &len);
 }
 
 slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
-                                         slipc_io_writer_t *writer, uint8_t byte) {
-
+                                         slipc_io_writer_t *writer,
+                                         uint8_t byte) {
   assert(self);
   assert(writer && writer->write);
 
@@ -239,7 +235,8 @@ slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
       return SLIPC_DECODER_EOF;
     }
 
-    if (!(decode_res == SLIPC_DECODER_MORE && read_res == SLIPC_IO_READER_MORE)) {
+    if (!(decode_res == SLIPC_DECODER_MORE &&
+          read_res == SLIPC_IO_READER_MORE)) {
       return SLIPC_DECODER_MORE;
     }
   }
@@ -254,12 +251,13 @@ slipc_decoder_result_t slipc_decoder_decode_packet(slipc_decoder_t *self,
   assert(buf);
 
   slipc_io_array_reader_t reader_ctx;
-  slipc_io_reader_t reader = slipc_io_array_reader_create(&reader_ctx, buf, len);
-
+  slipc_io_reader_t reader =
+      slipc_io_array_reader_create(&reader_ctx, buf, len);
   return slipc_decoder_transfer(self, &reader, writer);
 }
 
-static slipc_io_writer_result_t slipc_write_end_byte(slipc_io_writer_t *writer) {
+static slipc_io_writer_result_t
+slipc_write_end_byte(slipc_io_writer_t *writer) {
   uint8_t const start = SLIPC_END;
   size_t len = 1;
   return writer->write(writer->user_ctx, &start, &len);

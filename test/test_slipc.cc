@@ -430,6 +430,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -441,6 +442,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -453,6 +455,7 @@ TEST_CASE("Transfer decode", "[decode]") {
     auto decoder = dut::slipc_decoder_new(true);
     auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+    CHECK(!dut::slipc_decoder_is_malformed(&decoder));
     CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
     CHECK(writer.buf == packet.decoded);
   }
@@ -465,6 +468,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
       CHECK(writer.buf.empty());
     }
@@ -473,6 +477,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
       CHECK(writer.buf == packet.decoded);
     }
@@ -486,6 +491,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf.empty());
     }
@@ -497,6 +503,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -508,6 +515,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf.empty());
     }
@@ -521,6 +529,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(false);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -532,6 +541,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -543,6 +553,7 @@ TEST_CASE("Transfer decode", "[decode]") {
       auto decoder = dut::slipc_decoder_new(true);
       auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -559,6 +570,7 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -570,6 +582,7 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+      CHECK(!dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -582,6 +595,7 @@ TEST_CASE("Packet decode", "[decode]") {
     auto res = dut::slipc_decoder_decode_packet(
         &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+    CHECK(!dut::slipc_decoder_is_malformed(&decoder));
     CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
     CHECK(writer.buf == packet.decoded);
   }
@@ -595,6 +609,7 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -606,6 +621,7 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
@@ -617,6 +633,7 @@ TEST_CASE("Packet decode", "[decode]") {
       auto res = dut::slipc_decoder_decode_packet(
           &decoder, &writer, packet.encoded.data(), packet.encoded.size());
 
+      CHECK(dut::slipc_decoder_is_malformed(&decoder));
       CHECK(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
       CHECK(writer.buf == packet.decoded);
     }
