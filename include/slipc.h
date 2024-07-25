@@ -1,4 +1,6 @@
-/* SLIPC (Serial Line Internet Protocol in C) encoder and decoder.
+/**
+ * \file slipc.h
+ * \brief SLIPC (Serial Line Internet Protocol in C) encoder and decoder.
  *
  * This library provides functions to encode and decode data using the SLIP
  * protocol according to RFC 1055: www.ietf.org/rfc/rfc1055.txt
@@ -10,6 +12,8 @@
  */
 #ifndef _SLIPC_H_
 #define _SLIPC_H_
+
+#include "slipc_io.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -29,85 +33,6 @@ typedef enum slipc_char {
   SLIPC_ESC_END = 0xDC, /**< Escaped END character */
   SLIPC_ESC_ESC = 0xDD, /**< Escaped ESC character */
 } slipc_char_t;
-
-/**
- * \brief User context structure.
- */
-typedef struct slipc_user_ctx {
-  void *ctx; /**< User-defined context */
-} slipc_user_ctx_t;
-
-/**
- * \brief Result codes for writer operations.
- */
-typedef enum slipc_writer_result {
-  SLIPC_WRITER_OK,    /**< Operation successful */
-  SLIPC_WRITER_EOF,   /**< End of file */
-  SLIPC_WRITER_ERROR, /**< Error occurred */
-} slipc_writer_result_t;
-
-/**
- * \brief Callback function type for writing data.
- *
- * \note This function is expected to always write the full length of data.
- *
- * \param user_ctx User context
- * \param data Pointer to data to be written
- * \param len Length of data to be written
- *
- * \retval SLIPC_WRITER_OK Operation successful
- * \retval SLIPC_WRITER_EOF Can't write more data
- * \retval SLIPC_WRITER_ERROR Error occurred
- */
-typedef slipc_writer_result_t (*slipc_write_cb)(slipc_user_ctx_t user_ctx,
-                                                const uint8_t *data,
-                                                size_t len);
-
-/**
- * \brief Writer structure.
- */
-typedef struct slipc_writer {
-  struct slipc_user_ctx user_ctx; /**< User context */
-  slipc_write_cb write;           /**< Write callback function */
-} slipc_writer_t;
-
-/**
- * \brief Result codes for reader operations.
- */
-typedef enum slipc_reader_result {
-  SLIPC_READER_EOF,   /**< End of file */
-  SLIPC_READER_MORE,  /**< More data available */
-  SLIPC_READER_ERROR, /**< Error occurred */
-} slipc_reader_result_t;
-
-/**
- * \brief Callback function type for reading data.
- *
- * This expected to always set len to the number of bytes read.
- *
- * If no (more) data is available, the function should return SLIPC_READER_EOF
- * otherwise set SLIPC_READER_MORE.
- *
- * If an error occurs, the function should return SLIPC_READER_ERROR.
- *
- * \param user_ctx User context
- * \param data Pointer to buffer for reading data
- * \param len Pointer to length of data to be read
- * \retval SLIPC_READER_EOF No more data available
- * \retval SLIPC_READER_MORE More data available
- * \retval SLIPC_READER_ERROR Error occurred
- */
-typedef slipc_reader_result_t (*slipc_read_cb)(slipc_user_ctx_t user_ctx,
-                                               uint8_t *data, size_t *len);
-
-/**
- * \struct slipc_reader
- * \brief Reader structure.
- */
-typedef struct slipc_reader {
-  struct slipc_user_ctx user_ctx; /**< User context */
-  slipc_read_cb read;             /**< Read callback function */
-} slipc_reader_t;
 
 /**
  * \struct slipc_encoder
@@ -170,7 +95,7 @@ slipc_encoder_result_t slipc_encoder_transfer(slipc_encoder_t *self,
 /**
  * \brief Encode a packet of data into a writer.
  *
- * This function encodes the data buffer and sends it to the writer.
+ * This is identical to transfer, just from a buffer.
  *
  * \param writer Pointer to the writer structure
  * \param buf Pointer to the data buffer
@@ -190,6 +115,7 @@ slipc_encoder_result_t slipc_encode_packet(slipc_writer_t *writer,
 typedef struct slipc_decoder {
   bool startbyte; /**< Indicates if the start byte should be used */
   uint8_t prev;   /**< Previous byte processed */
+  bool malformed; /**< Malformed packet */
 } slipc_decoder_t;
 
 /**
@@ -217,12 +143,22 @@ void slipc_decoder_init(slipc_decoder_t *self, bool startbyte);
 slipc_decoder_t slipc_decoder_new(bool startbyte);
 
 /**
+ * \brief Check if the current packet is malformed.
+ */
+bool slipc_decoder_is_malformed(slipc_decoder_t *self);
+
+/**
  * \brief Decode a single byte into a writer.
  *
  * \note This ignores the startbyte option.
  *
  * This function is stateful as it needs information about the previous byte to
  * handle ESC bytes correctly.
+ *
+ * A malformed byte will just be passed through.
+ * (E.g. ESC not followed bye ESC_END or ESC_ESC)
+ *
+ * The state can be checked with slipc_decoder_is_malformed().
  *
  * \param self Pointer to the decoder structure
  * \param writer Pointer to the writer structure
@@ -257,21 +193,22 @@ slipc_decoder_result_t slipc_decoder_transfer(slipc_decoder_t *self,
 /**
  * \brief Decode a packet of data into a writer.
  *
- * This function decodes the data buffer and sends it to the writer.
+ * This is identical to transfer, just from a buffer.
  *
+ * \param self Pointer to the decoder structure
  * \param writer Pointer to the writer structure
  * \param buf Pointer to the data buffer
  * \param len Length of the data buffer
- * \param startbyte Indicates if the start byte should be used
  *
  * \retval SLIPC_DECODER_EOF Packet transfer complete
  * \retval SLIPC_DECODER_MORE Packet incomplete
  * \retval SLIPC_DECODER_NOT_FOUND No Start byte found (if startbyte is true)
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
-slipc_decoder_result_t slipc_decode_packet(slipc_writer_t *writer,
-                                           const uint8_t *buf, size_t len,
-                                           bool startbyte);
+slipc_decoder_result_t slipc_decoder_decode_packet(slipc_decoder_t *self,
+                                                   slipc_writer_t *writer,
+                                                   const uint8_t *buf,
+                                                   size_t len);
 
 #ifdef __cplusplus
 }
