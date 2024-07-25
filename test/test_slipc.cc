@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <format>
 #include <span>
 #include <vector>
 
@@ -341,7 +340,7 @@ TEST_CASE("Encoding single bytes", "[encode]") {
       },
   }));
 
-  INFO(std::format("byte: {}", byte));
+  INFO("Encoding byte " << byte);
 
   SECTION("Should succeed") {
     VecWriter writer;
