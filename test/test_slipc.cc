@@ -2,264 +2,442 @@
 #include "catch2/generators/catch_generators.hpp"
 
 #include <algorithm>
-#include <array>
+#include <cstdint>
 #include <format>
+#include <span>
 #include <vector>
 
 namespace dut {
 #include "slipc.h"
 }
 
-std::tuple<bool, size_t, std::vector<uint8_t>>
-bytecheck(std::tuple<bool, std::vector<uint8_t>> in) {
-  auto v = std::get<1>(in);
-  return {std::get<bool>(in), v.size(), v};
-}
+struct InputDecode {
+  std::vector<uint8_t> encoded;
+  std::vector<uint8_t> decoded;
+};
+
+static const InputDecode GOOD_PACKET = {
+    {
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        dut::slipc_char_t::SLIPC_END,
+    },
+    {
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        7,
+    },
+};
+
+static const InputDecode GOOD_PACKET_WITH_START = {
+    {
+        dut::slipc_char_t::SLIPC_END,
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        dut::slipc_char_t::SLIPC_END,
+    },
+    GOOD_PACKET.decoded,
+};
+
+static const InputDecode NOISY_PACKET = {
+    {
+        // Noise
+        44,
+        dut::slipc_char_t::SLIPC_ESC,
+        22,
+
+        // Start of packet
+        dut::slipc_char_t::SLIPC_END,
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        dut::slipc_char_t::SLIPC_END,
+        // End of packet
+
+        // Noise
+        42,
+        dut::slipc_char_t::SLIPC_ESC,
+    },
+    {
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        7,
+    },
+};
+
+static const InputDecode NO_DATA_PACKET = {
+    {},
+    {},
+};
+
+static const InputDecode EMPTY_PACKET = {
+    {
+        dut::slipc_char_t::SLIPC_END,
+    },
+    {},
+};
+
+static const InputDecode EMPTY_PACKET_WITH_START = {
+    {
+        dut::slipc_char_t::SLIPC_END,
+        dut::slipc_char_t::SLIPC_END,
+    },
+    EMPTY_PACKET.decoded,
+};
+
+static const InputDecode EMPTY_PACKET_WITH_NOISE = {
+    {
+        // Noise
+        44,
+        dut::slipc_char_t::SLIPC_ESC,
+        22,
+
+        // Start of packet
+        dut::slipc_char_t::SLIPC_END,
+        dut::slipc_char_t::SLIPC_END,
+        // End of packet
+
+        // Noise
+        42,
+        dut::slipc_char_t::SLIPC_ESC,
+    },
+    EMPTY_PACKET.decoded,
+};
+
+static const InputDecode MALFORMED_PACKET = {
+    {
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        8,
+        // Spurious ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        9,
+        // Repeated Spurios ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC,
+        10,
+        // ESC with END
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_END,
+    },
+    {
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        7,
+        8,
+        // Malformed
+        dut::slipc_char_t::SLIPC_ESC,
+        9,
+        // Malformed
+        dut::slipc_char_t::SLIPC_ESC,
+        // Malformed
+        dut::slipc_char_t::SLIPC_ESC,
+        10,
+        // Malformed
+        dut::slipc_char_t::SLIPC_ESC,
+    },
+};
+
+static const InputDecode MALFORMED_PACKET_WITH_START = {
+    {
+        dut::slipc_char_t::SLIPC_END,
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        8,
+        // Spurious ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        9,
+        // Repeated Spurios ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC,
+        10,
+        // ESC with END
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_END,
+    },
+    MALFORMED_PACKET.decoded,
+};
+
+static const InputDecode MALFORMED_NOISY_PACKET = {
+    {
+        // Noise
+        44,
+        dut::slipc_char_t::SLIPC_ESC,
+        22,
+
+        // Start of packet
+        1,
+        2,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        4,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        5,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_END,
+        6,
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC_ESC,
+        7,
+        8,
+        // Spurious ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        9,
+        // Repeated Spurios ESC
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_ESC,
+        10,
+        // ESC with END
+        dut::slipc_char_t::SLIPC_ESC,
+        dut::slipc_char_t::SLIPC_END,
+        // End of packet
+
+        // Noise
+        42,
+        dut::slipc_char_t::SLIPC_ESC,
+    },
+    MALFORMED_PACKET.decoded};
+
+struct VecWriter : dut::slipc_writer_t {
+  std::vector<uint8_t> buf;
+  dut::slipc_writer_result_t result;
+
+  VecWriter(dut::slipc_writer_result_t result)
+      : result(result), dut::slipc_writer_t{this, writer_cb} {}
+
+  static dut::slipc_writer_result_t writer_cb(dut::slipc_user_ctx_t uctx,
+                                            uint8_t const *buf, size_t len) {
+    auto &ctx = *static_cast<VecWriter *>(uctx.ctx);
+    std::span src(buf, len);
+
+    if (ctx.result == dut::slipc_writer_result_t::SLIPC_WRITER_OK) {
+      ctx.buf.insert(ctx.buf.end(), src.begin(), src.end());
+    }
+    return ctx.result;
+  }
+};
+
+struct VecReader : dut::slipc_reader_t {
+  std::vector<uint8_t> buf;
+  dut::slipc_reader_result_t result;
+
+  VecReader(std::vector<uint8_t> buf, dut::slipc_reader_result_t result)
+      : buf(buf), result(result), dut::slipc_reader_t{this, reader_cb} {}
+
+  static dut::slipc_reader_result_t reader_cb(dut::slipc_user_ctx_t uctx,
+                                            uint8_t *buf, size_t *len) {
+    auto &ctx = *static_cast<VecReader *>(uctx.ctx);
+    std::span dst(buf, *len);
+    if (ctx.result == dut::slipc_reader_result_t::SLIPC_READER_MORE) {
+      *len = std::min(ctx.buf.size(), dst.size_bytes());
+      std::copy_n(ctx.buf.begin(), *len, buf);
+      ctx.buf.erase(ctx.buf.begin(), ctx.buf.begin() + *len);
+
+      if (ctx.buf.empty()) {
+        return dut::slipc_reader_result_t::SLIPC_READER_EOF;
+      }
+    }
+
+    return ctx.result;
+  }
+};
 
 TEST_CASE("Encoding single bytes", "[encode]") {
-  auto [byte, exp_res,
-        exp_encoded] = GENERATE(table<uint8_t, bool, std::vector<uint8_t>>({
-      {0, true, {0}},
-      {1, true, {1}},
-      {dut::slipc_char::SLIPC_END,
-       true,
-       {dut::slipc_char::SLIPC_ESC, dut::slipc_char::SLIPC_ESC_END}},
-      {dut::slipc_char::SLIPC_ESC,
-       true,
-       {dut::slipc_char::SLIPC_ESC, dut::slipc_char::SLIPC_ESC_ESC}},
-      {dut::slipc_char::SLIPC_ESC_END, true, {dut::slipc_char::SLIPC_ESC_END}},
-      {dut::slipc_char::SLIPC_ESC_ESC, true, {dut::slipc_char::SLIPC_ESC_ESC}},
+  auto [byte, exp_encoded] = GENERATE(table<uint8_t, std::vector<uint8_t>>({
+      {0, {0}},
+      {1, {1}},
+      {
+          dut::slipc_char_t::SLIPC_END,
+          {dut::slipc_char_t::SLIPC_ESC, dut::slipc_char_t::SLIPC_ESC_END},
+      },
+      {
+          dut::slipc_char_t::SLIPC_ESC,
+          {dut::slipc_char_t::SLIPC_ESC, dut::slipc_char_t::SLIPC_ESC_ESC},
+      },
+      {
+          dut::slipc_char_t::SLIPC_ESC_END,
+          {dut::slipc_char_t::SLIPC_ESC_END},
+      },
+      {
+          dut::slipc_char_t::SLIPC_ESC_ESC,
+          {dut::slipc_char_t::SLIPC_ESC_ESC},
+      },
   }));
 
-  auto writer_return = GENERATE(dut::slipc_writer_error::SLIPC_WRITER_OK,
-                                dut::slipc_writer_error::SLIPC_WRITER_ERROR);
+  INFO(std::format("byte: {}", byte));
 
-  if (writer_return != dut::slipc_writer_error::SLIPC_WRITER_OK) {
-    exp_res = false;
-    exp_encoded = std::vector<uint8_t>{};
+  SECTION("Should succeed") {
+    VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+    auto res = dut::slipc_encode_byte(&writer, byte);
+    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    REQUIRE(writer.buf == exp_encoded);
   }
 
-  INFO(std::format("byte: {}, writer_return: {}, expected result: {}", byte,
-                   (int)writer_return, exp_res));
-
-  struct writer_ctx {
-    std::vector<uint8_t> buf;
-    dut::slipc_writer_error err;
-  };
-
-  writer_ctx ctx{
-      .buf = std::vector<uint8_t>{},
-      .err = writer_return,
-  };
-
-  dut::slipc_writer writer{
-      .ctx = &ctx,
-      .write = [](void *_ctx, uint8_t const *buf,
-                  size_t len) -> dut::slipc_writer_error {
-        auto ctx = static_cast<writer_ctx *>(_ctx);
-        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
-        }
-        return ctx->err;
-      },
-  };
-  auto res = dut::slipc_encode_byte(&writer, byte);
-
-  REQUIRE(res == exp_res);
-  REQUIRE(ctx.buf == exp_encoded);
+  SECTION("Should fail") {
+    VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_ERROR);
+    auto res = dut::slipc_encode_byte(&writer, byte);
+    REQUIRE(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    REQUIRE(writer.buf.empty());
+  }
 }
 
-TEST_CASE("Encoding failed", "[encode]") {
-  std::vector<uint8_t> buf{};
+TEST_CASE("Packet encode", "[encode]") {
 
-  dut::slipc_writer writer{
-      .ctx = &buf,
-      .write = [](void *ctx, uint8_t const *buf,
-                  size_t len) -> dut::slipc_writer_error {
-        return dut::slipc_writer_error::SLIPC_WRITER_ERROR;
-      },
-  };
-  auto res = dut::slipc_encode_byte(&writer, 42);
+  SECTION("Good Packet") {
+    auto const packet = GOOD_PACKET;
 
-  REQUIRE(res == false);
-  REQUIRE(buf.empty());
+    SECTION("Writer ok") {
+      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+      auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
+                                          packet.decoded.size(), false);
+      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      REQUIRE(writer.buf == packet.encoded);
+    }
+
+    SECTION("Writer error") {
+      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_ERROR);
+      auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
+                                          packet.decoded.size(), false);
+      REQUIRE(res != dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      REQUIRE(writer.buf.empty());
+    }
+  }
+
+  SECTION("Good Packet With Start") {
+    auto const packet = GOOD_PACKET_WITH_START;
+
+    SECTION("Writer ok") {
+      VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+      auto res = dut::slipc_encode_packet(&writer, packet.decoded.data(),
+                                          packet.decoded.size(), true);
+      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      REQUIRE(writer.buf == packet.encoded);
+    }
+  }
 }
 
-TEST_CASE("Good packet should encode", "[packet]") {
-  struct writer_ctx {
-    std::vector<uint8_t> buf;
-    dut::slipc_writer_error err;
-  };
+TEST_CASE("Transfer encode", "[transfer]") {
+  VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
 
-  writer_ctx ctx{
-      .buf = std::vector<uint8_t>{},
-      .err = dut::slipc_writer_error::SLIPC_WRITER_OK,
-  };
+  SECTION("Good Packet") {
+    auto const packet = GOOD_PACKET;
+    VecReader reader(packet.decoded,
+                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-  dut::slipc_writer writer{
-      .ctx = &ctx,
-      .write = [](void *_ctx, uint8_t const *buf,
-                  size_t len) -> dut::slipc_writer_error {
-        auto ctx = static_cast<writer_ctx *>(_ctx);
-        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
-        }
-        return ctx->err;
-      },
-  };
+    auto slip = dut::slipc_encoder_new(false);
+    auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
 
-  std::array<uint8_t, 12> input{
-      1,
-      2,
-      3,
-      dut::slipc_char::SLIPC_END,
-      4,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_END,
-      dut::slipc_char::SLIPC_ESC,
-      5,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      6,
-  };
+    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    REQUIRE(writer.buf == packet.encoded);
+  }
 
-  std::vector<uint8_t> expected{
-      1,
-      2,
-      3,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_END,
-      4,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      5,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      6,
-      dut::slipc_char::SLIPC_END,
-  };
+  SECTION("Good Packet With Start") {
+    auto const packet = GOOD_PACKET_WITH_START;
 
-  auto res =
-      dut::slipc_encode_packet(&writer, input.data(), input.size(), false);
+    VecReader reader(packet.decoded,
+                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-  REQUIRE(res == true);
-  REQUIRE(ctx.buf == expected);
+    auto slip = dut::slipc_encoder_new(true);
+    auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
+
+    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+    REQUIRE(writer.buf == packet.encoded);
+  }
 }
 
-TEST_CASE("Transfer should encode", "[transfer]") {
-  struct rw_ctx {
-    std::vector<uint8_t> buf;
-    int err;
-  };
+TEST_CASE("Transfer decode", "[decode]") {
+  VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
 
-  rw_ctx wctx{
-      .buf = std::vector<uint8_t>{},
-      .err = dut::slipc_writer_error::SLIPC_WRITER_OK,
-  };
+  SECTION("Good Packet") {
+    auto const packet = GOOD_PACKET;
+    VecReader reader(packet.encoded,
+                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-  dut::slipc_writer writer{
-      .ctx = &wctx,
-      .write = [](void *_ctx, uint8_t const *buf,
-                  size_t len) -> dut::slipc_writer_error {
-        auto ctx = static_cast<rw_ctx *>(_ctx);
-        if (ctx->err == dut::slipc_writer_error::SLIPC_WRITER_OK) {
-          ctx->buf.insert(ctx->buf.end(), buf, buf + len);
-        }
-        return static_cast<dut::slipc_writer_error>(ctx->err);
-      },
-  };
+    auto decoder = dut::slipc_decoder_new(false);
+    auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-  std::vector<uint8_t> input{
-      1,
-      2,
-      3,
-      dut::slipc_char::SLIPC_END,
-      4,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_END,
-      dut::slipc_char::SLIPC_ESC,
-      5,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      6,
-  };
+    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+    REQUIRE(writer.buf == packet.decoded);
+  }
 
-  rw_ctx rctx{
-      .buf = input,
-      .err = dut::slipc_reader_error::SLIPC_READER_EOF,
-  };
+  SECTION("Good Packet With Start") {
+    auto const packet = GOOD_PACKET_WITH_START;
+    VecReader reader(packet.encoded,
+                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-  dut::slipc_reader reader{
-      .ctx = &rctx,
-      .read = [](void *_ctx, uint8_t *buf,
-                 size_t *len) -> dut::slipc_reader_error {
-        auto ctx = static_cast<rw_ctx *>(_ctx);
-        if (ctx->buf.empty()) {
-          *len = 0;
-          return dut::slipc_reader_error::SLIPC_READER_EOF;
-        }
-        auto size = std::min(ctx->buf.size(), *len);
-        std::copy(ctx->buf.begin(), ctx->buf.begin() + size, buf);
-        ctx->buf.erase(ctx->buf.begin(), ctx->buf.begin() + size);
-        *len = size;
+    auto decoder = dut::slipc_decoder_new(true);
+    auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
-        INFO(std::format("left: {}", ctx->buf.size()));
-        return dut::slipc_reader_error::SLIPC_READER_OK;
-        // return dut::slipc_reader_error::SLIPC_READER_ERROR;
-      },
-  };
-
-  dut::slipc_encoder slip{};
-  dut::slipc_encoder_init(&slip, writer, reader, false);
-
-  auto res = dut::slipc_encode_transfer(&slip);
-
-  std::vector<uint8_t> expected{
-      1,
-      2,
-      3,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_END,
-      4,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      5,
-      dut::slipc_char::SLIPC_ESC_END,
-      dut::slipc_char::SLIPC_ESC_ESC,
-      6,
-      dut::slipc_char::SLIPC_END,
-  };
-
-  REQUIRE(res == true);
-  REQUIRE(wctx.buf == expected);
-}
-
-TEST_CASE("Decode byte ok", "[decode]") {
-  std::vector<uint8_t> buf{};
-
-  dut::slipc_writer writer{
-      .ctx = &buf,
-      .write = [](void *ctx, uint8_t const *buf,
-                  size_t len) -> dut::slipc_writer_error {
-        auto dst = static_cast<std::vector<uint8_t> *>(ctx);
-        dst->insert(dst->end(), buf, buf + len);
-        return dut::slipc_writer_error::SLIPC_WRITER_OK;
-      },
-  };
-  auto res = dut::slipc_encode_byte(&writer, 42);
-
-  std::vector<uint8_t> exp{
-      42,
-  };
-
-  REQUIRE(res == true);
-  REQUIRE(buf == exp);
+    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+    REQUIRE(writer.buf == packet.decoded);
+  }
 }
