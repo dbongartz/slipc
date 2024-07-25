@@ -236,6 +236,7 @@ static const InputDecode MALFORMED_NOISY_PACKET = {
         22,
 
         // Start of packet
+        dut::slipc_char_t::SLIPC_END,
         1,
         2,
         dut::slipc_char_t::SLIPC_ESC_END,
@@ -271,17 +272,22 @@ struct VecWriter : dut::slipc_writer_t {
   std::vector<uint8_t> buf;
   dut::slipc_writer_result_t result;
 
-  VecWriter(dut::slipc_writer_result_t result)
+  VecWriter(dut::slipc_writer_result_t result =
+                dut::slipc_writer_result_t::SLIPC_WRITER_OK)
       : result(result), dut::slipc_writer_t{this, writer_cb} {}
 
   static dut::slipc_writer_result_t writer_cb(dut::slipc_user_ctx_t uctx,
-                                            uint8_t const *buf, size_t len) {
+                                              uint8_t const *buf, size_t *len) {
     auto &ctx = *static_cast<VecWriter *>(uctx.ctx);
-    std::span src(buf, len);
+    std::span src(buf, *len);
 
     if (ctx.result == dut::slipc_writer_result_t::SLIPC_WRITER_OK) {
       ctx.buf.insert(ctx.buf.end(), src.begin(), src.end());
+      *len = src.size_bytes();
+    } else {
+      *len = 0;
     }
+
     return ctx.result;
   }
 };
@@ -290,11 +296,13 @@ struct VecReader : dut::slipc_reader_t {
   std::vector<uint8_t> buf;
   dut::slipc_reader_result_t result;
 
-  VecReader(std::vector<uint8_t> buf, dut::slipc_reader_result_t result)
+  VecReader(std::vector<uint8_t> buf,
+            dut::slipc_reader_result_t result =
+                dut::slipc_reader_result_t::SLIPC_READER_MORE)
       : buf(buf), result(result), dut::slipc_reader_t{this, reader_cb} {}
 
   static dut::slipc_reader_result_t reader_cb(dut::slipc_user_ctx_t uctx,
-                                            uint8_t *buf, size_t *len) {
+                                              uint8_t *buf, size_t *len) {
     auto &ctx = *static_cast<VecReader *>(uctx.ctx);
     std::span dst(buf, *len);
     if (ctx.result == dut::slipc_reader_result_t::SLIPC_READER_MORE) {
@@ -336,7 +344,7 @@ TEST_CASE("Encoding single bytes", "[encode]") {
   INFO(std::format("byte: {}", byte));
 
   SECTION("Should succeed") {
-    VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
+    VecWriter writer;
     auto res = dut::slipc_encode_byte(&writer, byte);
     REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
     REQUIRE(writer.buf == exp_encoded);
@@ -389,28 +397,29 @@ TEST_CASE("Transfer encode", "[transfer]") {
   VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
 
   SECTION("Good Packet") {
-    auto const packet = GOOD_PACKET;
-    VecReader reader(packet.decoded,
-                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-    auto slip = dut::slipc_encoder_new(false);
-    auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
+    SECTION("Without startbyte") {
+      auto const packet = GOOD_PACKET;
+      VecReader reader(packet.decoded);
 
-    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-    REQUIRE(writer.buf == packet.encoded);
-  }
+      auto slip = dut::slipc_encoder_new(false);
+      auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
 
-  SECTION("Good Packet With Start") {
-    auto const packet = GOOD_PACKET_WITH_START;
+      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      REQUIRE(writer.buf == packet.encoded);
+    }
 
-    VecReader reader(packet.decoded,
-                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
+    SECTION("With startbyte") {
+      auto const packet = GOOD_PACKET_WITH_START;
 
-    auto slip = dut::slipc_encoder_new(true);
-    auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
+      VecReader reader(packet.decoded);
 
-    REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
-    REQUIRE(writer.buf == packet.encoded);
+      auto slip = dut::slipc_encoder_new(true);
+      auto res = dut::slipc_encoder_transfer(&slip, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_encoder_result_t::SLIPC_ENCODER_OK);
+      REQUIRE(writer.buf == packet.encoded);
+    }
   }
 }
 
@@ -418,26 +427,203 @@ TEST_CASE("Transfer decode", "[decode]") {
   VecWriter writer(dut::slipc_writer_result_t::SLIPC_WRITER_OK);
 
   SECTION("Good Packet") {
-    auto const packet = GOOD_PACKET;
-    VecReader reader(packet.encoded,
-                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
 
-    auto decoder = dut::slipc_decoder_new(false);
-    auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+    SECTION("Without startbyte") {
+      auto const packet = GOOD_PACKET;
+      VecReader reader(packet.encoded);
 
-    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
-    REQUIRE(writer.buf == packet.decoded);
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("With startbyte") {
+      auto const packet = GOOD_PACKET_WITH_START;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
   }
 
-  SECTION("Good Packet With Start") {
-    auto const packet = GOOD_PACKET_WITH_START;
-    VecReader reader(packet.encoded,
-                     dut::slipc_reader_result_t::SLIPC_READER_MORE);
+  SECTION("Noisy Packet") {
+    auto const packet = NOISY_PACKET;
+    VecReader reader(packet.encoded);
 
     auto decoder = dut::slipc_decoder_new(true);
     auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
 
     REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
     REQUIRE(writer.buf == packet.decoded);
+  }
+
+  SECTION("No Data Packet") {
+    auto const packet = NO_DATA_PACKET;
+    VecReader reader(packet.encoded);
+
+    SECTION("Without startbyte") {
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
+      REQUIRE(writer.buf.empty());
+    }
+
+    SECTION("With startbyte") {
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_NOT_FOUND);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+  }
+
+  SECTION("Empty Packet") {
+    SECTION("Without startbyte") {
+      auto const packet = EMPTY_PACKET;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf.empty());
+    }
+
+    SECTION("With startbyte") {
+      auto const packet = EMPTY_PACKET_WITH_START;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("With noise") {
+      auto const packet = EMPTY_PACKET_WITH_NOISE;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf.empty());
+    }
+  }
+
+  SECTION("Malformed Packet") {
+    SECTION("Without startbyte") {
+      auto const packet = MALFORMED_PACKET;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("With startbyte") {
+      auto const packet = MALFORMED_PACKET_WITH_START;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("Noisy Packet") {
+      auto const packet = MALFORMED_NOISY_PACKET;
+      VecReader reader(packet.encoded);
+
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_transfer(&decoder, &reader, &writer);
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+  }
+}
+
+TEST_CASE("Packet decode", "[decode]") {
+  SECTION("Good Packet") {
+
+    SECTION("Without startbyte") {
+      auto const packet = GOOD_PACKET;
+      auto writer = VecWriter();
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_decode_packet(
+          &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("With startbyte") {
+      auto const packet = GOOD_PACKET_WITH_START;
+      auto writer = VecWriter();
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_decode_packet(
+          &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+  }
+
+  SECTION("Noisy Packet") {
+    auto const packet = NOISY_PACKET;
+    auto writer = VecWriter();
+    auto decoder = dut::slipc_decoder_new(true);
+    auto res = dut::slipc_decoder_decode_packet(
+        &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+    REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+    REQUIRE(writer.buf == packet.decoded);
+  }
+
+  SECTION("Malformed Packet") {
+
+    SECTION("Without startbyte") {
+      auto const packet = MALFORMED_PACKET;
+      auto writer = VecWriter();
+      auto decoder = dut::slipc_decoder_new(false);
+      auto res = dut::slipc_decoder_decode_packet(
+          &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("With startbyte") {
+      auto const packet = MALFORMED_PACKET_WITH_START;
+      auto writer = VecWriter();
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_decode_packet(
+          &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
+
+    SECTION("Noisy Packet") {
+      auto const packet = MALFORMED_NOISY_PACKET;
+      auto writer = VecWriter();
+      auto decoder = dut::slipc_decoder_new(true);
+      auto res = dut::slipc_decoder_decode_packet(
+          &decoder, &writer, packet.encoded.data(), packet.encoded.size());
+
+      REQUIRE(res == dut::slipc_decoder_result_t::SLIPC_DECODER_EOF);
+      REQUIRE(writer.buf == packet.decoded);
+    }
   }
 }
