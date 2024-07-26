@@ -210,12 +210,6 @@ slipc_decoder_result_t slipc_decoder_decode_packet(slipc_decoder_t *self,
                                                    const uint8_t *buf,
                                                    size_t len);
 
-slipc_encoder_result_t slipc_encoder_simple(slipc_io_writer_t *writer,
-                                            const uint8_t *buf, size_t *len);
-
-slipc_decoder_result_t slipc_decoder_simple(slipc_io_reader_t *reader,
-                                            uint8_t *buf, size_t *len);
-
 #ifdef __cplusplus
 }
 #endif
