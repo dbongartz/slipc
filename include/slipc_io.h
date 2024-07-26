@@ -13,6 +13,10 @@
 #ifndef __SLIPC_IO_H__
 #define __SLIPC_IO_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -134,4 +138,7 @@ typedef struct slipc_io_array_reader {
 slipc_io_reader_t slipc_io_array_reader_create(slipc_io_array_reader_t *self,
                                                uint8_t const *buf, size_t len);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __SLIPC_IO_H__
