@@ -61,24 +61,28 @@ typedef struct slipc_writer {
 } slipc_io_writer_t;
 
 /**
- * \brief Writer for writing to an array.
+ * \brief Writer for writing to a buffer.
  */
-typedef struct slipc_io_array_writer {
+typedef struct slipc_io_buffer_writer {
   uint8_t *buf;
   size_t len;
-} slipc_io_array_writer_t;
+} slipc_io_buffer_writer_t;
 
 /**
- * \brief Create a writer for writing to an array.
+ * \brief Create a writer for writing to a buffer.
  *
- * \param self Pointer to the array writer structure
- * \param buf Buffer needs to be alive as long as the array writer is used
+ * \param self Pointer to the buffer writer structure
+ * \param buf Buffer needs to be alive as long as the buffer writer is used
  * \param len Length of the buffer
  *
  * \return Initialized writer structure
  */
-slipc_io_writer_t slipc_io_array_writer_create(slipc_io_array_writer_t *self,
+slipc_io_writer_t slipc_io_writer_from_buffer(slipc_io_buffer_writer_t *self,
                                                uint8_t *buf, size_t len);
+
+slipc_io_writer_result_t slipc_io_writer_write(slipc_io_writer_t *writer,
+                                               const uint8_t *data,
+                                               size_t *len);
 
 /**
  * \brief Result codes for reader operations.
@@ -119,24 +123,27 @@ typedef struct slipc_io_reader {
 } slipc_io_reader_t;
 
 /**
- * \brief Reader for reading from an array.
+ * \brief Reader for reading from a buffer.
  */
-typedef struct slipc_io_array_reader {
+typedef struct slipc_io_buffer_reader {
   uint8_t const *buf;
   size_t len;
-} slipc_io_array_reader_t;
+} slipc_io_buffer_reader_t;
 
 /**
- * \brief Create a reader for reading from an array.
+ * \brief Create a reader for reading from a buffer.
  *
- * \param self Pointer to the array reader structure
- * \param buf Buffer needs to be alive as long as the array reader is used
+ * \param self Pointer to the buffer reader structure
+ * \param buf Buffer needs to be alive as long as the buffer reader is used
  * \param len Length of the buffer
  *
  * \return Initialized reader structure
  */
-slipc_io_reader_t slipc_io_array_reader_create(slipc_io_array_reader_t *self,
+slipc_io_reader_t slipc_io_reader_from_buffer(slipc_io_buffer_reader_t *self,
                                                uint8_t const *buf, size_t len);
+
+slipc_io_reader_result_t slipc_io_reader_read(slipc_io_reader_t *reader,
+                                              uint8_t *data, size_t *len);
 
 #ifdef __cplusplus
 }

@@ -73,7 +73,8 @@ slipc_encoder_t slipc_encoder_new(bool startbyte);
  * \retval SLIPC_ENCODER_OK Operation successful
  * \retval SLIPC_ENCODER_IO_ERROR I/O error occurred
  */
-slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer, uint8_t byte);
+slipc_encoder_result_t slipc_encode_byte(slipc_io_writer_t *writer,
+                                         uint8_t byte);
 
 /**
  * \brief Transfer data from reader to writer.
@@ -169,7 +170,8 @@ bool slipc_decoder_is_malformed(slipc_decoder_t *self);
  * \retval SLIPC_DECODER_IO_ERROR I/O error occurred
  */
 slipc_decoder_result_t slipc_decode_byte(slipc_decoder_t *self,
-                                         slipc_io_writer_t *writer, uint8_t byte);
+                                         slipc_io_writer_t *writer,
+                                         uint8_t byte);
 
 /**
  * \brief Transfer data from reader to writer using the decoder.
