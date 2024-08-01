@@ -23,7 +23,8 @@ target_include_directories(slipc
 target_compile_features(slipc PRIVATE c_std_17)
 target_compile_options(slipc PRIVATE -Wall -Wextra)
 
-option(${PROJECT_NAME}_ENABLE_TESTS "Enable unit tests for SLPIC." OFF)
-if(${PROJECT_NAME}_ENABLE_TESTS)
-add_subdirectory(test)
+option(BUILD_TESTS "Enable unit tests for SLPIC." OFF)
+
+if(BUILD_TESTS)
+	add_subdirectory(test)
 endif()

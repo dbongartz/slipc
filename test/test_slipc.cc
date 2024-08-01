@@ -2,7 +2,6 @@
 #include "catch2/generators/catch_generators.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <span>
 #include <vector>
